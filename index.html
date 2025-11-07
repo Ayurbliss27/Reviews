@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Reviews Dialog</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#f7f7f9;}
+  .container{max-width:720px;margin:40px auto;padding:20px;background:white;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.08);}
+  h1{margin:0 0 10px;font-size:20px;}
+  .btn{display:inline-block;padding:10px 14px;border-radius:8px;border:0;background:#007bff;color:white;text-decoration:none;font-weight:600;cursor:pointer;}
+  .btn.secondary{background:#6c757d;}
+  .reviews{margin-top:16px;}
+  .review{padding:12px;border-radius:8px;background:#f1f5f9;margin-bottom:10px;}
+  .rating{font-weight:700;color:#ff9f1c;}
+  /* Modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999;}
+  .modal{width:90%;max-width:520px;background:white;border-radius:12px;padding:18px;box-shadow:0 10px 30px rgba(2,6,23,0.2);position:relative;}
+  .modal h2{margin-top:0;}
+  .form-row{display:flex;gap:8px;margin:8px 0;}
+  .form-row input,.form-row textarea{flex:1;padding:8px;border-radius:8px;border:1px solid #ddd;font-size:14px;}
+  .stars{letter-spacing:6px;font-size:18px;}
+  .close-x{position:absolute;right:14px;top:8px;font-size:18px;border:0;background:transparent;cursor:pointer;}
+  .empty-note{color:#666;font-size:14px;margin-top:8px;}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome — Scan Result</h1>
+    <p>After scanning the QR code, this page opens and shows a dialog with reviews. You can read existing reviews or add a new one.</p>
+    <button class="btn" id="openBtn">Open Reviews Dialog</button>
+    <div class="reviews" id="reviewsList" aria-live="polite"></div>
+  </div>
+
+  <!-- Modal (hidden by default) -->
+  <div id="modalRoot" style="display:none;">
+    <div class="modal-backdrop" id="backdrop" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <div class="modal" role="document">
+        <button class="close-x" id="closeBtn" aria-label="Close dialog">&times;</button>
+        <h2 id="dialogTitle">Customer Reviews</h2>
+        <div id="reviewsContainer" class="reviews"></div>
+
+        <hr/>
+        <h3>Add a review</h3>
+        <div class="form-row">
+          <input id="name" placeholder="Your name"/>
+          <select id="rating" aria-label="Rating">
+            <option value="5">★★★★★ (5)</option>
+            <option value="4">★★★★ (4)</option>
+            <option value="3">★★★ (3)</option>
+            <option value="2">★★ (2)</option>
+            <option value="1">★ (1)</option>
+          </select>
+        </div>
+        <div style="margin-top:8px;">
+          <textarea id="comment" placeholder="Write your review" rows="3"></textarea>
+        </div>
+        <div style="margin-top:10px;text-align:right;">
+          <button class="btn secondary" id="cancelBtn">Cancel</button>
+          <button class="btn" id="submitBtn">Submit Review</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // Default sample reviews
+  const sampleReviews = [
+    {name: "Ravi", rating: 5, comment: "Excellent experience — highly recommended!"},
+    {name: "Anita", rating: 4, comment: "Good service, a few small delays."},
+    {name: "Suresh", rating: 3, comment: "Average; expected a bit more."}
+  ];
+
+  // Local storage key to persist reviews on device
+  const STORAGE_KEY = 'qr_reviews_demo_v1';
+
+  function loadReviews(){
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw) return JSON.parse(raw);
+    } catch(e){}
+    return sampleReviews.slice();
+  }
+  function saveReviews(arr){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }catch(e){}
+  }
+
+  function renderList(container, items){
+    container.innerHTML = '';
+    if(!items || items.length===0){
+      container.innerHTML = '<div class="empty-note">No reviews yet.</div>';
+      return;
+    }
+    items.forEach(r=>{
+      const d = document.
+createElement('div');
+      d.className = 'review';
+      d.innerHTML = '<div><strong>'+escapeHtml(r.name)+'</strong> <span class="rating">'+'★'.repeat(r.rating)+'</span></div>'+
+                    '<div style="margin-top:6px;">'+escapeHtml(r.comment)+'</div>';
+      container.appendChild(d);
+    });
+  }
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+
+  // elements
+  const openBtn = document.getElementById('openBtn');
+  const modalRoot = document.getElementById('modalRoot');
+  const backdrop = document.getElementById('backdrop');
+  const closeBtn = document.getElementById('closeBtn');
+  const cancelBtn = document.getElementById('cancelBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  const reviewsContainer = document.getElementById('reviewsContainer');
+  const reviewsList = document.getElementById('reviewsList');
+
+  let reviews = loadReviews();
+  renderList(reviewsList, reviews);
+
+  function openModal(){
+    modalRoot.style.display = 'block';
+    // render inside modal
+    renderList(reviewsContainer, reviews);
+    // trap focus (basic)
+    closeBtn.focus();
+  }
+  function closeModal(){ modalRoot.style.display = 'none'; }
+
+  openBtn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+  cancelBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', function(e){
+    if(e.target === backdrop) closeModal();
+  });
+
+  submitBtn.addEventListener('click', function(){
+    const name = document.getElementById('name').value.trim() || 'Anonymous';
+    const rating = parseInt(document.getElementById('rating').value,10) || 5;
+    const comment = document.getElementById('comment').value.trim() || '';
+    const newReview = {name, rating, comment};
+    reviews.unshift(newReview);
+    saveReviews(reviews);
+    renderList(reviewsContainer, reviews);
+    renderList(reviewsList, reviews);
+    // clear form
+    document.getElementById('name').value = '';
+    document.getElementById('rating').value = '5';
+    document.getElementById('comment').value = '';
+    alert('Thanks — your review was added!');
+  });
+
+  // Auto-open modal when the page loads (so scanning immediately shows dialog)
+  window.addEventListener('load', function(){ setTimeout(openModal, 300); });
+
+})();
+</script>
+</body>
+</html>
